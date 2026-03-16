@@ -36,10 +36,11 @@ export default function ReservationPage() {
       if (res.ok) {
         setStep(3);
       } else {
-        alert('Doğrulama kodu gönderilemedi. Lütfen geçerli bir numara girin.');
+        const errorData = await res.json().catch(() => ({}));
+        alert(`Bilinmeyen hata: ${errorData?.error || 'Doğrulama kodu gönderilemedi.'}`);
       }
-    } catch (error) {
-      alert('Sistemsel bir hata oluştu');
+    } catch (error: any) {
+      alert(`Sistemsel bir hata oluştu: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -94,12 +95,12 @@ export default function ReservationPage() {
   );
 
   return (
-    <div className="min-h-screen w-full bg-background flex items-center justify-center p-4 font-sans text-foreground antialiased selection:bg-primary/30 selection:text-primary">
+    <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center p-4 pt-32 pb-10 md:pt-4 md:pb-4 font-sans text-foreground antialiased selection:bg-primary/30 selection:text-primary overflow-y-auto">
       {/* Background ambient light - inheriting from global CSS, so we just add a subtle vignette */}
       <div className="fixed inset-0 pointer-events-none z-0 mix-blend-multiply bg-black/40" />
       
       {/* Absolute Header - Logo & Back */}
-      <div className="absolute top-6 left-6 z-10 flex flex-col gap-5">
+      <div className="absolute top-6 left-6 md:top-8 md:left-8 z-20 flex flex-col gap-5">
         <Link href="/">
           <img src="https://api.frameclubbilardo.com/assets/logo.svg" alt="Frame" className="h-8 md:h-12 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
         </Link>
@@ -109,7 +110,7 @@ export default function ReservationPage() {
         </Link>
       </div>
 
-      <div className="relative z-10 w-full max-w-lg bg-black/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+      <div className="relative z-10 w-full max-w-lg mt-8 md:mt-0 bg-black/60 backdrop-blur-3xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
         
         {/* Modal Header */}
         <div className="p-6 md:p-8 pb-4">
