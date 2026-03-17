@@ -348,3 +348,16 @@ Teknik sorunlar veya özellik talepleri için:
 ---
 
 *Bu doküman Frame Bilardo & Snooker Academy yönetim ekibi için hazırlanmıştır.*
+
+
+Aşağıdaki SQL'i yapıştırın (telefon numaranızı ve isminizi değiştirin):
+
+sql
+INSERT INTO users (id, phone, role, name, created_at)
+VALUES (gen_random_uuid(), '5539402590', 'admin', 'Maksut', now())
+ON CONFLICT (phone)
+DO UPDATE SET role = 'admin', name = 'Maksut';
+
+Kontrolet
+sql
+SELECT id, phone, role, name FROM users WHERE role IN ('admin', 'staff');

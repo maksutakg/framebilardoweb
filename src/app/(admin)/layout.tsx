@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Loader2, LogOut, LayoutDashboard, BarChart3, CalendarClock } from 'lucide-react';
+import { Loader2, LogOut, LayoutDashboard, BarChart3, CalendarClock, Users } from 'lucide-react';
 import { signOut } from 'next-auth/react';
 import Link from 'next/link';
 
@@ -40,6 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/dashboard', label: 'Masalar', icon: LayoutDashboard },
     { href: '/dashboard/reports', label: 'Raporlar', icon: BarChart3 },
     { href: '/dashboard/reservations', label: 'Rezervasyonlar', icon: CalendarClock },
+    ...(session?.user?.role === 'admin' ? [{ href: '/dashboard/staff', label: 'Personel', icon: Users }] : []),
   ];
 
   return (
