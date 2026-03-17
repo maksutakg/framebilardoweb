@@ -110,11 +110,11 @@ export default function LoginPage() {
             <div className="space-y-5 flex justify-center animate-in fade-in slide-in-from-right-4 duration-300">
               <input 
                 type="password"
-                placeholder="****"
+                placeholder="******"
                 className="w-full text-center bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all text-3xl font-mono tracking-widest"
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ''))}
-                maxLength={4}
+                maxLength={6}
                 onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
               />
             </div>
@@ -127,7 +127,7 @@ export default function LoginPage() {
                 if (step === 1) handleNext();
                 else if (step === 2) handleLogin();
               }}
-              disabled={loading || (step === 1 && phoneNumber.length < 10) || (step === 2 && otpCode.length < 4)}
+              disabled={loading || (step === 1 && phoneNumber.length < 10) || (step === 2 && otpCode.length < 6)}
               className="bg-white hover:bg-zinc-200 text-black font-semibold rounded-md w-full py-3 transition-colors disabled:opacity-50 flex items-center justify-center text-lg"
             >
               {loading && <Loader2 className="mr-2 size-5 animate-spin" />}

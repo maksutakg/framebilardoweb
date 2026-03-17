@@ -4,6 +4,11 @@ import { db } from './db';
 import { users, otpCodes } from './schema';
 import { eq, and } from 'drizzle-orm';
 
+// OTP doğrulama deneme sayısını bellekte tut (production'da Redis/DB kullanılmalı)
+const otpAttempts = new Map<string, { count: number; lockedUntil: number }>();
+const MAX_OTP_ATTEMPTS = 5;
+const LOCK_DURATION_MS = 15 * 60 * 1000; // 15 dakika
+
 export const authOptions = {
   providers: [
     CredentialsProvider({
@@ -15,46 +20,73 @@ export const authOptions = {
       async authorize(credentials) {
         if (!credentials?.phone || !credentials?.otp) return null;
 
-        // 1234 MASTER KEY (Test veya Apple/Google Review için bypass)
-        if (credentials.otp === '1234') {
-          // Buraları bypass eder ve girer (Production'da kapatılabilir)
-        } else {
-          // DB'den OTP Sorgula
+        const phone = credentials.phone.trim();
+        const otp = credentials.otp.trim();
+
+        // ─── Brute-force koruması ───
+        const attemptKey = `otp:${phone}`;
+        const attempt = otpAttempts.get(attemptKey);
+        
+        if (attempt && attempt.lockedUntil > Date.now()) {
+          const remainingMinutes = Math.ceil((attempt.lockedUntil - Date.now()) / (1000 * 60));
+          throw new Error(`Çok fazla yanlış deneme. ${remainingMinutes} dakika sonra tekrar deneyin.`);
+        }
+
+        // ─── DEV BYPASS (Sadece development ortamında + ENV flag açıksa) ───
+        const isDevBypass = 
+          process.env.NODE_ENV === 'development' && 
+          process.env.OTP_BYPASS_ENABLED === 'true' &&
+          otp === '1234';
+
+        if (!isDevBypass) {
+          // ─── Gerçek OTP doğrulama ───
           const otpRecords = await db.select().from(otpCodes).where(
             and(
-              eq(otpCodes.phone, credentials.phone),
-              eq(otpCodes.code, credentials.otp)
+              eq(otpCodes.phone, phone),
+              eq(otpCodes.code, otp)
             )
           );
 
           const validOtp = otpRecords[0];
 
           if (!validOtp) {
-            throw new Error('Geçersiz veya hatalı doğrulama kodu');
+            // Yanlış deneme sayını artır
+            const current = otpAttempts.get(attemptKey) || { count: 0, lockedUntil: 0 };
+            current.count += 1;
+            
+            if (current.count >= MAX_OTP_ATTEMPTS) {
+              current.lockedUntil = Date.now() + LOCK_DURATION_MS;
+              current.count = 0; // Kilitle ve sıfırla
+              otpAttempts.set(attemptKey, current);
+              throw new Error('Çok fazla yanlış deneme. 15 dakika beklemeniz gerekiyor.');
+            }
+            
+            otpAttempts.set(attemptKey, current);
+            throw new Error(`Geçersiz doğrulama kodu (${MAX_OTP_ATTEMPTS - current.count} deneme hakkı kaldı)`);
           }
 
           if (validOtp.expiresAt < new Date()) {
-            throw new Error('Doğrulama kodunun süresi dolmuş');
+            throw new Error('Doğrulama kodunun süresi dolmuş. Yeni kod isteyin.');
           }
 
-          // OTP başarılı, silebiliriz
+          // OTP başarılı — kodu sil ve deneme sayısını sıfırla
           await db.delete(otpCodes).where(eq(otpCodes.id, validOtp.id));
+          otpAttempts.delete(attemptKey);
         }
 
-        // Veritabanında daha önce bu numara ile kayıtlı biri var mı kontrolü
-        let userRecords = await db.select().from(users).where(eq(users.phone, credentials.phone));
+        // ─── Kullanıcı sorgusu ───
+        let userRecords = await db.select().from(users).where(eq(users.phone, phone));
         let user = userRecords[0];
 
-        // Yoksa telefonuyla yeni kayıt (müşteri) oluştur
+        // Yoksa yeni müşteri oluştur
         if (!user) {
           const insertedUser = await db.insert(users).values({
-            phone: credentials.phone,
+            phone: phone,
             role: 'customer'
           }).returning();
           user = insertedUser[0];
         }
 
-        // Token'a gömülecek veri
         return {
           id: user.id,
           phone: user.phone,
@@ -83,8 +115,9 @@ export const authOptions = {
   },
   session: {
     strategy: 'jwt' as const,
+    maxAge: 12 * 60 * 60, // 12 saat — personel mesai süresi
   },
   pages: {
-    signIn: '/login', // Özel giriş yapma sayfamız
+    signIn: '/login',
   }
 };

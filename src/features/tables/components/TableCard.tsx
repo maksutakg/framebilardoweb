@@ -1,7 +1,14 @@
 'use client';
 
 import React from 'react';
-import { Play, Square, CalendarClock, MoreHorizontal } from 'lucide-react';
+import { Play, Square, CalendarClock, MoreHorizontal, Wrench } from 'lucide-react';
+import LiveTimer from './LiveTimer';
+
+export interface TableSession {
+  id: string;
+  startedAt: string;
+  hourlyRateAtTime: number | null;
+}
 
 export interface TableResource {
   id: string;
@@ -9,6 +16,7 @@ export interface TableResource {
   type: string;
   status: 'available' | 'in-use' | 'reserved' | 'maintenance';
   hourlyRate: number;
+  currentSession?: TableSession | null;
 }
 
 interface TableCardProps {
@@ -18,7 +26,6 @@ interface TableCardProps {
 }
 
 export default function TableCard({ table, onOpenTable, onCloseTable }: TableCardProps) {
-  // Dynamically map statuses to visually appealing states customized for the dark aesthetic
   const stateConfig = {
     'available': {
       indicatorGlow: 'shadow-[0_0_20px_rgba(16,185,129,0.5)]',
@@ -35,7 +42,7 @@ export default function TableCard({ table, onOpenTable, onCloseTable }: TableCar
       borderClasses: 'border-red-500/30 hover:border-red-500/50 bg-black/80',
       badgeClasses: 'bg-red-500/10 text-red-400 border-red-500/20',
       iconStyle: 'bg-red-500/10 text-red-400',
-      badgeLabel: 'Dolu (01:24)', // Dummy timer label
+      badgeLabel: 'Dolu',
       Icon: Square,
     },
     'reserved': {
@@ -44,7 +51,7 @@ export default function TableCard({ table, onOpenTable, onCloseTable }: TableCar
       borderClasses: 'border-amber-500/30 hover:border-amber-500/50',
       badgeClasses: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
       iconStyle: 'bg-amber-500/10 text-amber-400',
-      badgeLabel: 'Rezerve - 14:00',
+      badgeLabel: 'Rezerve',
       Icon: CalendarClock,
     },
     'maintenance': {
@@ -54,11 +61,13 @@ export default function TableCard({ table, onOpenTable, onCloseTable }: TableCar
       badgeClasses: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
       iconStyle: 'bg-zinc-500/10 text-zinc-400',
       badgeLabel: 'Bakımda',
-      Icon: MoreHorizontal,
+      Icon: Wrench,
     }
   };
 
   const config = stateConfig[table.status];
+  const hasSession = table.status === 'in-use' && table.currentSession;
+  const sessionRate = table.currentSession?.hourlyRateAtTime || table.hourlyRate;
 
   return (
     <div className={`table-card group relative flex flex-col justify-between overflow-hidden rounded-2xl bg-black/60 backdrop-blur-3xl border border-white/10 transition-all duration-300 cursor-pointer shadow-xl ${config.borderClasses}`}>
@@ -73,7 +82,7 @@ export default function TableCard({ table, onOpenTable, onCloseTable }: TableCar
             {table.name}
             <div className={`h-2 w-2 rounded-full ${config.indicatorColor} ${config.indicatorGlow}`} />
           </h3>
-          <p className="text-sm text-zinc-400 uppercase tracking-widest font-semibold text-[10px]">
+          <p className="text-[10px] text-zinc-400 uppercase tracking-widest font-semibold">
             {table.type}
           </p>
         </div>
@@ -82,13 +91,24 @@ export default function TableCard({ table, onOpenTable, onCloseTable }: TableCar
         </div>
       </div>
 
-      {/* Content section */}
+      {/* Content section — Canlı Kronometre veya Ücret Bilgisi */}
       <div className="flex items-end justify-between p-5 pt-4 flex-1">
         <div className="space-y-1">
-          <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Oyun Tutarı</p>
-          <p className="text-2xl font-mono tracking-tight font-medium text-white">
-            {table.status === 'in-use' ? '₺560,00' : '₺0,00'}
-          </p>
+          {hasSession ? (
+            /* CANLI KRONOMETREnin + TUTAR */
+            <LiveTimer
+              startedAt={table.currentSession!.startedAt}
+              hourlyRate={sessionRate}
+            />
+          ) : (
+            /* Müsait masa — saatlik ücret göster */
+            <>
+              <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">Saatlik Ücret</p>
+              <p className="text-2xl font-mono tracking-tight font-medium text-white">
+                ₺{table.hourlyRate.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+              </p>
+            </>
+          )}
         </div>
         
         <div className={`p-4 rounded-full transition-transform duration-300 ${table.status !== 'maintenance' ? 'group-hover:scale-110' : ''} ${config.iconStyle}`}>
@@ -114,7 +134,7 @@ export default function TableCard({ table, onOpenTable, onCloseTable }: TableCar
           </button>
         ) : (
           <button disabled className="w-full py-3 px-4 rounded-xl font-semibold text-zinc-500 bg-white/5 border border-white/5 cursor-not-allowed">
-            İşlem Yapılamaz
+            {table.status === 'reserved' ? 'Rezerve Edilmiş' : 'Bakımda'}
           </button>
         )}
       </div>

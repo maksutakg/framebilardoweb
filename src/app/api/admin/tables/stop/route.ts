@@ -2,15 +2,22 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { tables, gameSessions } from '@/lib/schema';
 import { eq, sql, and } from 'drizzle-orm';
+import { requireStaffOrAdmin } from '@/lib/auth-guard';
+
+// Minimum ücret politikası: 1 saatlik minimum
+const MINIMUM_HOURS = 1;
 
 export async function POST(req: Request) {
   try {
+    const { error } = await requireStaffOrAdmin();
+    if (error) return error;
+
     const { tableId } = await req.json();
     if (!tableId) {
       return NextResponse.json({ error: 'Masa ID gerekli' }, { status: 400 });
     }
 
-    // 1. Masanın o anki Session'ını (başlangıç zamanını) bul ve bitir
+    // 1. Aktif oturumu bul
     const activeSessions = await db.select()
       .from(gameSessions)
       .where(
@@ -24,46 +31,53 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Açık oturum bulunamadı' }, { status: 404 });
     }
 
-    const session = activeSessions[0];
+    const gameSession = activeSessions[0];
     const endedAt = new Date();
+    const startedAt = new Date(gameSession.startedAt);
     
-    // Dakika ve Saat hesabıyla Toplam Tutarı Çıkarma
-    // 400 TL Sabit Ücret, Formül: (Geçen Saat) * 400 TL
-    const startedAt = new Date(session.startedAt);
+    // Masanın o anki saatlik ücretini kullan (snapshot)
+    const hourlyRate = gameSession.hourlyRateAtTime || 400;
+    
+    // Süre hesapla
     const durationMs = endedAt.getTime() - startedAt.getTime();
     const durationHours = durationMs / (1000 * 60 * 60);
-    const hourlyRate = 400; // TL
-
-    // Fiyat tabanı 0 olmak üzere virgülden sonra 2 basamak formatlı.
-    // Eğer 15dk'dan az oynadıysa genelde min. ücret konur ama biz şimdilik net hesap verelim (veyahut minimum 100tl diyelim)
-    let totalPrice = durationHours * hourlyRate;
-    // Küçük bir yuvarlama hatası olmasın
+    const durationMinutes = Math.floor(durationMs / (1000 * 60));
+    
+    // Minimum ücret politikası: en az 1 saat
+    const billableHours = Math.max(durationHours, MINIMUM_HOURS);
+    let totalPrice = billableHours * hourlyRate;
     totalPrice = Math.round(totalPrice * 100) / 100;
 
-    // 2. Tabloyu Güncelle (Bitiş ve Tutarla)
+    // 2. Oturumu güncelle
     await db.update(gameSessions)
       .set({
         endedAt,
         totalPrice,
         status: 'finished'
       })
-      .where(eq(gameSessions.id, session.id));
+      .where(eq(gameSessions.id, gameSession.id));
 
-    // 3. Masanın kendi Durumunu ("Müsait") olarak değiştir
+    // 3. Masayı müsait yap
     await db.update(tables)
       .set({ status: 'available' })
       .where(eq(tables.id, tableId));
 
-    // 4. PostgreSQL LISTEN/NOTIFY için kanala anında yayın yap (İkinci Admin varsa ekranı yeşile dønsün)
-    await db.execute(sql`NOTIFY table_updates, ${sql.raw(`'{"tableId":"${tableId}","status":"available"}'`)}`);
+    // 4. Gerçek zamanlı güncelleme — Güvenli parametrize
+    const payload = JSON.stringify({ tableId, status: 'available' });
+    try {
+      await db.execute(sql`NOTIFY table_updates, ${payload}`);
+    } catch {}
 
     return NextResponse.json({ 
       success: true, 
       receipt: {
+        sessionId: gameSession.id,
         startedAt,
         endedAt,
-        durationMinutes: Math.floor(durationMs / (1000 * 60)),
-        totalPrice
+        durationMinutes,
+        hourlyRate,
+        totalPrice,
+        minimumApplied: durationHours < MINIMUM_HOURS,
       }
     });
   } catch (err: any) {

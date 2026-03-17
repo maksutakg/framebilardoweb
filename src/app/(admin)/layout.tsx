@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { Loader2, LogOut } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Loader2, LogOut, LayoutDashboard, BarChart3, CalendarClock } from 'lucide-react';
 import { signOut } from 'next-auth/react';
+import Link from 'next/link';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    // Oturum yoksa veya kullanıcı staff/admin değilse login'e yönlendir
     if (status === 'unauthenticated') {
       router.replace('/login');
     }
@@ -20,7 +21,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [status, session, router]);
 
-  // Yüklenirken premium loading
   if (status === 'loading') {
     return (
       <div className="flex h-screen w-full bg-background items-center justify-center">
@@ -32,37 +32,64 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  // Yetkisiz ise boş render (redirect olacak)
   if (status === 'unauthenticated' || (session?.user?.role !== 'staff' && session?.user?.role !== 'admin')) {
     return null;
   }
 
+  const navItems = [
+    { href: '/dashboard', label: 'Masalar', icon: LayoutDashboard },
+    { href: '/dashboard/reports', label: 'Raporlar', icon: BarChart3 },
+    { href: '/dashboard/reservations', label: 'Rezervasyonlar', icon: CalendarClock },
+  ];
+
   return (
     <div className="flex h-screen w-full bg-background flex-col relative overflow-hidden">
-      {/* Background ambient light - inherited from globals.css starfield & vignette */}
       <div className="fixed inset-0 pointer-events-none z-0 mix-blend-multiply bg-black/40" />
       
       {/* Premium Top Navigation Bar */}
       <header className="flex items-center justify-between px-6 py-4 bg-black/50 backdrop-blur-2xl border-b border-white/10 shrink-0 z-20 sticky top-0">
-        <div className="flex items-center gap-3">
-          <div className="size-10 rounded-full flex items-center justify-center">
-             <img src="https://api.frameclubbilardo.com/assets/logo.svg" alt="Frame" className="h-8 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-full flex items-center justify-center">
+               <img src="https://api.frameclubbilardo.com/assets/logo.svg" alt="Frame" className="h-8 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]" />
+            </div>
+            <div className="hidden md:block">
+              <h1 className="text-xl font-bold tracking-tight text-white drop-shadow-md">Dashboard</h1>
+              <p className="text-xs text-zinc-400 uppercase font-medium tracking-wider">Yönetim Paneli</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white drop-shadow-md">Dashboard</h1>
-            <p className="text-xs text-zinc-400 uppercase font-medium tracking-wider">Masa Yönetimi</p>
-          </div>
+
+          {/* Nav Links */}
+          <nav className="flex items-center gap-1">
+            {navItems.map(item => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    isActive
+                      ? 'bg-white/10 text-white border border-white/10'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <item.icon className="size-4" />
+                  <span className="hidden sm:inline">{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
         </div>
+
         <div className="flex items-center gap-4">
-          <div className="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm flex items-center gap-2 text-white">
+          <div className="hidden lg:flex px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm items-center gap-2 text-white">
             <span className="relative flex size-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full size-2.5 bg-emerald-500"></span>
             </span>
-            <span className="font-semibold tracking-wide shadow-sm">Canlı Bağlantı</span>
+            <span className="font-semibold tracking-wide shadow-sm">Canlı</span>
           </div>
           
-          {/* Kullanıcı bilgisi & çıkış */}
           <div className="hidden md:flex items-center gap-2 text-sm text-zinc-300 font-medium">
             <span>{session?.user?.phone}</span>
           </div>
