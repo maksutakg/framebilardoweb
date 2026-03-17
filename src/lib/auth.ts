@@ -32,13 +32,14 @@ export const authOptions = {
           throw new Error(`Çok fazla yanlış deneme. ${remainingMinutes} dakika sonra tekrar deneyin.`);
         }
 
-        // ─── DEV BYPASS (Sadece development ortamında + ENV flag açıksa) ───
-        const isDevBypass = 
-          process.env.NODE_ENV === 'development' && 
+        // ─── OTP BYPASS (WhatsApp API entegrasyonu tamamlanana kadar) ───
+        // Coolify ortam değişkenlerinde OTP_BYPASS_ENABLED=true ise ve kod 1234 ise bypass
+        // WhatsApp entegrasyonu tamamlandığında OTP_BYPASS_ENABLED=false yapın
+        const isBypassEnabled = 
           process.env.OTP_BYPASS_ENABLED === 'true' &&
           otp === '1234';
 
-        if (!isDevBypass) {
+        if (!isBypassEnabled) {
           // ─── Gerçek OTP doğrulama ───
           const otpRecords = await db.select().from(otpCodes).where(
             and(
