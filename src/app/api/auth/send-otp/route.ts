@@ -16,24 +16,39 @@ export async function POST(req: Request) {
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 dakika
 
     // Önceki kodları silelim
-    await db.delete(otpCodes).where(eq(otpCodes.phone, phone));
+    try {
+      await db.delete(otpCodes).where(eq(otpCodes.phone, phone));
+    } catch (dbErr: any) {
+      console.error('[OTP] DB DELETE Hatası:', dbErr.message);
+      return NextResponse.json({ error: `Veritabanı hatası (silme): ${dbErr.message}` }, { status: 500 });
+    }
 
     // Yeni Kodu Ekle
-    await db.insert(otpCodes).values({
-      phone,
-      code,
-      expiresAt,
-    });
+    try {
+      await db.insert(otpCodes).values({
+        phone,
+        code,
+        expiresAt,
+      });
+    } catch (dbErr: any) {
+      console.error('[OTP] DB INSERT Hatası:', dbErr.message);
+      return NextResponse.json({ error: `Veritabanı hatası (ekleme): ${dbErr.message}` }, { status: 500 });
+    }
 
-    // WhatsApp API çağrısı
-    await sendWhatsAppOTP(phone, code);
+    // WhatsApp API çağrısı (şimdilik simülasyon)
+    try {
+      await sendWhatsAppOTP(phone, code);
+    } catch (waErr: any) {
+      console.error('[OTP] WhatsApp API Hatası:', waErr.message);
+      // WhatsApp başarısız olsa bile devam et, kod DB'de mevcut
+    }
 
-    // TODO: DEV ORTAMINDA KONSOLA YAZALIM (Test Edebilmeniz İçin)
-    console.log(`[TEST] Giden WhatsApp OTP Kodu -> ${phone}: ${code}`);
+    // Konsola yazdıralım ki test edilebilsin
+    console.log(`[OTP] Giden Kod -> ${phone}: ${code}`);
 
     return NextResponse.json({ success: true, message: 'OTP gönderildi' });
   } catch (err: any) {
-    console.error('OTP Error:', err);
-    return NextResponse.json({ error: 'SMS gönderilirken hata oluştu' }, { status: 500 });
+    console.error('[OTP] Genel Hata:', err.message, err.stack);
+    return NextResponse.json({ error: `Genel sunucu hatası: ${err.message}` }, { status: 500 });
   }
 }

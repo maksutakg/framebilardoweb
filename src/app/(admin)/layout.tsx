@@ -1,6 +1,42 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { Loader2, LogOut } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    // Oturum yoksa veya kullanıcı staff/admin değilse login'e yönlendir
+    if (status === 'unauthenticated') {
+      router.replace('/login');
+    }
+    if (status === 'authenticated' && session?.user?.role !== 'staff' && session?.user?.role !== 'admin') {
+      router.replace('/login');
+    }
+  }, [status, session, router]);
+
+  // Yüklenirken premium loading
+  if (status === 'loading') {
+    return (
+      <div className="flex h-screen w-full bg-background items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="size-10 animate-spin text-emerald-400" />
+          <p className="text-zinc-400 font-medium">Oturum kontrol ediliyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Yetkisiz ise boş render (redirect olacak)
+  if (status === 'unauthenticated' || (session?.user?.role !== 'staff' && session?.user?.role !== 'admin')) {
+    return null;
+  }
+
   return (
     <div className="flex h-screen w-full bg-background flex-col relative overflow-hidden">
       {/* Background ambient light - inherited from globals.css starfield & vignette */}
@@ -25,8 +61,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </span>
             <span className="font-semibold tracking-wide shadow-sm">Canlı Bağlantı</span>
           </div>
-          <button className="flex items-center justify-center size-10 rounded-full bg-white/5 hover:bg-white/15 transition-colors border border-white/10 shadow-lg text-white">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          
+          {/* Kullanıcı bilgisi & çıkış */}
+          <div className="hidden md:flex items-center gap-2 text-sm text-zinc-300 font-medium">
+            <span>{session?.user?.phone}</span>
+          </div>
+
+          <button 
+            onClick={() => signOut({ callbackUrl: '/login' })}
+            className="flex items-center justify-center size-10 rounded-full bg-white/5 hover:bg-red-500/20 transition-colors border border-white/10 shadow-lg text-zinc-400 hover:text-red-400"
+            title="Çıkış Yap"
+          >
+            <LogOut className="size-5" />
           </button>
         </div>
       </header>
